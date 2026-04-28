@@ -63,6 +63,7 @@ services:
     environment:
       GENERATOR_MODE: "prod"
       GENERATOR_INTERVAL_SECONDS: "10"
+      TOTAL_SESSIONS: "7"
     depends_on:
       opensearch:
         condition: service_healthy

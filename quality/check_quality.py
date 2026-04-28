@@ -5,15 +5,23 @@ import os
 import time
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from opensearchpy.helpers import scan
 
 try:
-    from ingestion.opensearch_client import create_opensearch_service
+    from common.parsing import (
+        coerce_float,
+        coerce_int,
+        format_timestamp,
+        parse_timestamp,
+        utc_now,
+        utc_timestamp,
+    )
     from ingestion.validation import ALLOWED_EVENT_TYPES
+    from storage.opensearch_client import create_opensearch_service
 except ModuleNotFoundError:
     import sys
 
@@ -21,8 +29,16 @@ except ModuleNotFoundError:
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
 
-    from ingestion.opensearch_client import create_opensearch_service  # type: ignore[no-redef]
+    from common.parsing import (  # type: ignore[no-redef]
+        coerce_float,
+        coerce_int,
+        format_timestamp,
+        parse_timestamp,
+        utc_now,
+        utc_timestamp,
+    )
     from ingestion.validation import ALLOWED_EVENT_TYPES  # type: ignore[no-redef]
+    from storage.opensearch_client import create_opensearch_service  # type: ignore[no-redef]
 
 
 COMMON_REQUIRED_FIELDS = (
@@ -107,38 +123,9 @@ class QualityEventWindow:
     run_cutoff: str
     incremental_events: list[dict[str, Any]]
     window_events: list[dict[str, Any]]
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _format_timestamp(value: datetime) -> str:
-    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _utc_timestamp() -> str:
-    return _format_timestamp(_utc_now())
-
-
-def _parse_timestamp(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value.strip():
-        return None
-
-    candidate = value.strip().replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(candidate)
-    except ValueError:
-        return None
-
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
-
-
 def _event_checkpoint_time(event: dict[str, Any]) -> datetime | None:
     for field_name in ("ingested_at", "received_at", "event_time"):
-        parsed = _parse_timestamp(event.get(field_name))
+        parsed = parse_timestamp(event.get(field_name))
         if parsed is not None:
             return parsed
     return None
@@ -146,24 +133,6 @@ def _event_checkpoint_time(event: dict[str, Any]) -> datetime | None:
 
 def _is_missing(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
-
-
-def _coerce_int(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    return None
-
-
-def _coerce_float(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
 
 
 def _build_result(
@@ -250,12 +219,12 @@ def _load_incremental_event_window(
             window_events=window_events,
         )
 
-    checkpoint_dt = _parse_timestamp(checkpoint_ingested_at)
+    checkpoint_dt = parse_timestamp(checkpoint_ingested_at)
     if checkpoint_dt is None:
         raise RuntimeError(f"invalid checkpoint timestamp: {checkpoint_ingested_at}")
 
     window_start_dt = checkpoint_dt - timedelta(seconds=QUALITY_OVERLAP_WINDOW_SECONDS)
-    window_start = _format_timestamp(window_start_dt)
+    window_start = format_timestamp(window_start_dt)
     window_events = _load_events(service, lower_bound=window_start, upper_bound=run_cutoff)
 
     incremental_events: list[dict[str, Any]] = []
@@ -277,7 +246,7 @@ def _max_checkpoint_timestamp(events: list[dict[str, Any]]) -> str | None:
     parsed_times = [parsed for event in events if (parsed := _event_checkpoint_time(event)) is not None]
     if not parsed_times:
         return None
-    return _format_timestamp(max(parsed_times))
+    return format_timestamp(max(parsed_times))
 
 
 def _required_field_null_check(
@@ -384,7 +353,7 @@ def _rank_range_check(
         if rank is None:
             continue
 
-        rank_value = _coerce_int(rank)
+        rank_value = coerce_int(rank)
         if rank_value is not None and 1 <= rank_value <= 10:
             continue
 
@@ -417,7 +386,7 @@ def _click_prob_range_check(
         if click_prob is None:
             continue
 
-        click_prob_value = _coerce_float(click_prob)
+        click_prob_value = coerce_float(click_prob)
         if click_prob_value is not None and 0.0 <= click_prob_value <= 1.0:
             continue
 
@@ -450,7 +419,7 @@ def _position_bias_range_check(
         if position_bias is None:
             continue
 
-        position_bias_value = _coerce_float(position_bias)
+        position_bias_value = coerce_float(position_bias)
         if position_bias_value is not None and 0.0 <= position_bias_value <= 1.0:
             continue
 
@@ -552,7 +521,7 @@ def _late_arrival_event_check(
         late_events.append(event)
         by_event_type[str(event.get("event_type"))] += 1
 
-        arrival_lag_seconds = _coerce_float(event.get("arrival_lag_seconds")) or 0.0
+        arrival_lag_seconds = coerce_float(event.get("arrival_lag_seconds")) or 0.0
         max_lag_seconds = max(max_lag_seconds, arrival_lag_seconds)
 
     late_event_count = len(late_events)
@@ -620,7 +589,7 @@ def run_quality_checks() -> dict[str, Any]:
         service,
         checkpoint_exists=checkpoint_ingested_at is not None,
     )
-    checked_at = _utc_timestamp()
+    checked_at = utc_timestamp()
     event_window = _load_incremental_event_window(
         service,
         checkpoint_ingested_at=checkpoint_ingested_at,

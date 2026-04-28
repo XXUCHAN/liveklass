@@ -6,7 +6,7 @@ from typing import Any
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException, Response
 
-from ingestion.opensearch_client import (
+from storage.opensearch_client import (
     OpenSearchService,
     build_dead_letter_document,
     create_opensearch_service,

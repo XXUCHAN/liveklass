@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 from opensearchpy import OpenSearch, helpers
 from opensearchpy.exceptions import NotFoundError
 
+from common.parsing import utc_timestamp
 from ingestion.settings import IngestionSettings, settings
-
-
-def _utc_timestamp() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _base_index_settings() -> dict[str, Any]:
@@ -236,9 +232,10 @@ def build_dead_letter_document(
         "payload": payload if isinstance(payload, dict) else {"raw_payload": payload},
         "error_reason": error_reason,
         "failed_stage": failed_stage,
-        "created_at": _utc_timestamp(),
+        "created_at": utc_timestamp(),
     }
 
 
 def create_opensearch_service(app_settings: IngestionSettings | None = None) -> OpenSearchService:
     return OpenSearchService(app_settings or settings)
+

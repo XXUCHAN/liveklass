@@ -4,8 +4,8 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from ingestion.opensearch_client import OpenSearchService, build_dead_letter_document
 from ingestion.settings import IngestionSettings, settings
+from storage.opensearch_client import OpenSearchService, build_dead_letter_document
 
 
 class QueueFullError(Exception):

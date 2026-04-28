@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
+
+from common.parsing import coerce_float, coerce_int, format_timestamp, parse_timestamp, utc_now
 
 ALLOWED_EVENT_TYPES = {"page_view", "impression", "click", "purchase", "error"}
 ALLOWED_DEVICES = {"mobile", "desktop", "tablet"}
@@ -26,43 +27,6 @@ def _is_non_empty_string(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _parse_timestamp(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value.strip():
-        return None
-
-    candidate = value.strip().replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(candidate)
-    except ValueError:
-        return None
-
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
-
-
-def _format_timestamp(value: datetime) -> str:
-    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _coerce_int(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    return None
-
-
-def _coerce_float(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
-
-
 def _validate_common_fields(
     event: dict[str, Any],
     errors: list[str],
@@ -70,8 +34,8 @@ def _validate_common_fields(
     late_arrival_threshold_seconds: float,
 ) -> dict[str, Any]:
     normalized = dict(event)
-    ingested_at = datetime.now(UTC)
-    normalized["ingested_at"] = _format_timestamp(ingested_at)
+    ingested_at = utc_now()
+    normalized["ingested_at"] = format_timestamp(ingested_at)
 
     for required_field in ("event_id", "schema_version", "user_id", "session_id"):
         if not _is_non_empty_string(normalized.get(required_field)):
@@ -83,21 +47,21 @@ def _validate_common_fields(
     elif event_type not in ALLOWED_EVENT_TYPES:
         errors.append(f"event_type must be one of {sorted(ALLOWED_EVENT_TYPES)}")
 
-    event_time = _parse_timestamp(normalized.get("event_time"))
+    event_time = parse_timestamp(normalized.get("event_time"))
     if event_time is None:
         errors.append("event_time must be a parseable timestamp")
     else:
-        normalized["event_time"] = _format_timestamp(event_time)
+        normalized["event_time"] = format_timestamp(event_time)
 
     received_at_value = normalized.get("received_at")
     if received_at_value is None:
-        normalized["received_at"] = _format_timestamp(ingested_at)
+        normalized["received_at"] = format_timestamp(ingested_at)
     else:
-        received_at = _parse_timestamp(received_at_value)
+        received_at = parse_timestamp(received_at_value)
         if received_at is None:
             errors.append("received_at must be a parseable timestamp when provided")
         else:
-            normalized["received_at"] = _format_timestamp(received_at)
+            normalized["received_at"] = format_timestamp(received_at)
 
     if event_time is not None:
         arrival_lag_seconds = max(0.0, (ingested_at - event_time).total_seconds())
@@ -124,7 +88,7 @@ def _validate_impression(event: dict[str, Any], errors: list[str]) -> None:
     if not _is_non_empty_string(event.get("item_id")):
         errors.append("item_id is required for impression event")
 
-    rank = _coerce_int(event.get("rank"))
+    rank = coerce_int(event.get("rank"))
     if rank is None:
         errors.append("rank is required for impression event")
     elif not 1 <= rank <= 10:
@@ -144,7 +108,7 @@ def _validate_impression(event: dict[str, Any], errors: list[str]) -> None:
 
     position_bias = event.get("position_bias")
     if position_bias is not None:
-        position_bias_value = _coerce_float(position_bias)
+        position_bias_value = coerce_float(position_bias)
         if position_bias_value is None:
             errors.append("position_bias must be numeric when provided")
 
@@ -155,13 +119,13 @@ def _validate_click(event: dict[str, Any], errors: list[str]) -> None:
     if not _is_non_empty_string(event.get("item_id")):
         errors.append("item_id is required for click event")
 
-    rank = _coerce_int(event.get("rank"))
+    rank = coerce_int(event.get("rank"))
     if rank is None:
         errors.append("rank is required for click event")
     elif not 1 <= rank <= 10:
         errors.append("rank must be between 1 and 10 for click event")
 
-    click_prob = _coerce_float(event.get("click_prob"))
+    click_prob = coerce_float(event.get("click_prob"))
     if click_prob is None:
         errors.append("click_prob is required for click event")
     elif not 0.0 <= click_prob <= 1.0:
@@ -179,7 +143,7 @@ def _validate_click(event: dict[str, Any], errors: list[str]) -> None:
 
     position_bias = event.get("position_bias")
     if position_bias is not None:
-        position_bias_value = _coerce_float(position_bias)
+        position_bias_value = coerce_float(position_bias)
         if position_bias_value is None:
             errors.append("position_bias must be numeric when provided")
 
@@ -188,7 +152,7 @@ def _validate_purchase(event: dict[str, Any], errors: list[str]) -> None:
     if not _is_non_empty_string(event.get("item_id")):
         errors.append("item_id is required for purchase event")
 
-    amount = _coerce_float(event.get("amount"))
+    amount = coerce_float(event.get("amount"))
     if amount is None:
         errors.append("amount is required for purchase event")
     elif amount < 0:

@@ -3,11 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-
-def _parse_bool(value: str | None, default: bool = False) -> bool:
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+from common.parsing import parse_bool
 
 
 @dataclass(frozen=True)
@@ -48,7 +44,7 @@ class IngestionSettings:
             startup_retry_delay_seconds=float(
                 os.getenv("OPENSEARCH_STARTUP_RETRY_DELAY_SECONDS", "2")
             ),
-            log_invalid_payloads=_parse_bool(os.getenv("LOG_INVALID_PAYLOADS"), default=True),
+            log_invalid_payloads=parse_bool(os.getenv("LOG_INVALID_PAYLOADS"), default=True),
             late_arrival_threshold_seconds=float(
                 os.getenv("LATE_ARRIVAL_THRESHOLD_SECONDS", "3600")
             ),

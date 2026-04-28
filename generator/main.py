@@ -7,12 +7,14 @@ import time
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import httpx
 
 try:
+    from common.parsing import format_timestamp, parse_bool, parse_timestamp
     from generator.click_model import (
         POPULARITY_BOOST,
         PRESENTATION_BOOST,
@@ -21,7 +23,14 @@ try:
         get_position_bias,
     )
 except ModuleNotFoundError:
-    from click_model import (  
+    import sys
+
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+
+    from common.parsing import format_timestamp, parse_bool, parse_timestamp  # type: ignore[no-redef]
+    from click_model import (
         POPULARITY_BOOST,
         PRESENTATION_BOOST,
         POSITION_BIAS,
@@ -53,16 +62,6 @@ PRESENTATION_WEIGHTS = (
 )
 
 
-def parse_bool(value: str | None, default: bool = False) -> bool:
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def isoformat_no_microseconds(value: datetime) -> str:
-    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
 @dataclass(frozen=True)
 class GeneratorSettings:
     api_url: str
@@ -82,7 +81,7 @@ class GeneratorSettings:
     max_cycles: int
     seed: int
     ensure_all_event_types: bool
-    # TODO: Add an invalid_event_rate setting 
+    # TODO: Add an invalid_event_rate setting
 
     @classmethod
     def from_env(cls) -> "GeneratorSettings":
@@ -342,8 +341,8 @@ class ClickstreamGenerator:
             "event_type": event_type,
             "user_id": user_id,
             "session_id": session_id,
-            "event_time": isoformat_no_microseconds(event_time),
-            "received_at": isoformat_no_microseconds(received_at),
+            "event_time": format_timestamp(event_time),
+            "received_at": format_timestamp(received_at),
             "device": device,
             **fields,
         }
@@ -354,7 +353,9 @@ class ClickstreamGenerator:
             return
 
         first_event = events[0]
-        anchor_time = datetime.fromisoformat(first_event["event_time"].replace("Z", "+00:00"))
+        anchor_time = parse_timestamp(first_event["event_time"])
+        if anchor_time is None:
+            anchor_time = datetime.now(UTC)
         fallback_user = first_event["user_id"]
         fallback_session = first_event["session_id"]
         fallback_device = first_event["device"]
@@ -375,7 +376,9 @@ class ClickstreamGenerator:
         if counts["purchase"] == 0:
             click_event = next((event for event in events if event["event_type"] == "click"), None)
             if click_event is not None:
-                click_time = datetime.fromisoformat(click_event["event_time"].replace("Z", "+00:00"))
+                click_time = parse_timestamp(click_event["event_time"])
+                if click_time is None:
+                    click_time = anchor_time
                 events.append(
                     self._build_common_event(
                         event_type="purchase",

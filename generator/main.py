@@ -21,7 +21,7 @@ try:
         get_position_bias,
     )
 except ModuleNotFoundError:
-    from click_model import (  # type: ignore[no-redef]
+    from click_model import (  
         POPULARITY_BOOST,
         PRESENTATION_BOOST,
         POSITION_BIAS,
@@ -67,6 +67,7 @@ def isoformat_no_microseconds(value: datetime) -> str:
 class GeneratorSettings:
     api_url: str
     send_to_api: bool
+    mode: str
     total_sessions: int
     batch_size: int
     catalog_size: int
@@ -77,15 +78,22 @@ class GeneratorSettings:
     request_timeout_seconds: float
     health_retries: int
     retry_delay_seconds: float
+    cycle_interval_seconds: float
+    max_cycles: int
     seed: int
     ensure_all_event_types: bool
     # TODO: Add an invalid_event_rate setting 
 
     @classmethod
     def from_env(cls) -> "GeneratorSettings":
+        mode = os.getenv("GENERATOR_MODE", "dev").strip().lower()
+        if mode not in {"dev", "prod"}:
+            mode = "dev"
+
         return cls(
             api_url=os.getenv("GENERATOR_API_URL", "http://api:8000/events"),
-            send_to_api=parse_bool(os.getenv("SEND_TO_API"), default=False),
+            send_to_api=parse_bool(os.getenv("SEND_TO_API"), default=(mode == "prod")),
+            mode=mode,
             total_sessions=int(os.getenv("TOTAL_SESSIONS", "120")),
             batch_size=int(os.getenv("GENERATOR_BATCH_SIZE", "100")),
             catalog_size=int(os.getenv("CATALOG_SIZE", "60")),
@@ -96,6 +104,8 @@ class GeneratorSettings:
             request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "10")),
             health_retries=int(os.getenv("API_HEALTH_RETRIES", "30")),
             retry_delay_seconds=float(os.getenv("API_RETRY_DELAY_SECONDS", "2")),
+            cycle_interval_seconds=float(os.getenv("GENERATOR_INTERVAL_SECONDS", "10")),
+            max_cycles=int(os.getenv("GENERATOR_MAX_CYCLES", "0")),
             seed=int(os.getenv("GENERATOR_SEED", "7")),
             ensure_all_event_types=parse_bool(os.getenv("ENSURE_ALL_EVENT_TYPES"), default=True),
         )
@@ -419,18 +429,82 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def main() -> None:
-    settings = GeneratorSettings.from_env()
+def run_oneshot(settings: GeneratorSettings) -> None:
     generator = ClickstreamGenerator(settings)
     events = generator.generate()
     summary = summarize_events(events)
 
     if settings.send_to_api:
         generator.post_events(events)
-        print(json.dumps({**summary, "delivery": "posted_to_api"}, indent=2))
+        print(
+            json.dumps(
+                {
+                    **summary,
+                    "delivery": "posted_to_api",
+                    "mode": settings.mode,
+                    "execution_pattern": "oneshot",
+                },
+                indent=2,
+            )
+        )
         return
 
-    print(json.dumps({**summary, "delivery": "dry_run"}, indent=2))
+    print(
+        json.dumps(
+            {
+                **summary,
+                "delivery": "dry_run",
+                "mode": settings.mode,
+                "execution_pattern": "oneshot",
+            },
+            indent=2,
+        )
+    )
+
+
+def run_continuous(settings: GeneratorSettings) -> None:
+    generator = ClickstreamGenerator(settings)
+    cycle = 0
+
+    while True:
+        cycle += 1
+        events = generator.generate()
+        summary = summarize_events(events)
+
+        if settings.send_to_api:
+            generator.post_events(events)
+            delivery = "posted_to_api"
+        else:
+            delivery = "dry_run"
+
+        print(
+            json.dumps(
+                {
+                    **summary,
+                    "delivery": delivery,
+                    "mode": settings.mode,
+                    "execution_pattern": "continuous",
+                    "cycle": cycle,
+                    "sleep_seconds": settings.cycle_interval_seconds,
+                },
+                indent=2,
+            )
+        )
+
+        if settings.max_cycles > 0 and cycle >= settings.max_cycles:
+            return
+
+        time.sleep(settings.cycle_interval_seconds)
+
+
+def main() -> None:
+    settings = GeneratorSettings.from_env()
+
+    if settings.mode == "prod":
+        run_continuous(settings)
+        return
+
+    run_oneshot(settings)
 
 
 if __name__ == "__main__":

@@ -61,7 +61,8 @@ services:
       dockerfile: Dockerfile.generator
     command: ["python", "-m", "generator.main"]
     environment:
-      SEND_TO_API: "true"
+      GENERATOR_MODE: "prod"
+      GENERATOR_INTERVAL_SECONDS: "10"
     depends_on:
       opensearch:
         condition: service_healthy
@@ -72,7 +73,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.job
-    command: ["python", "quality/check_quality.py"]
+    command: ["python", "-u", "quality/check_quality.py"]
+    environment:
+      QUALITY_MODE: "prod"
+      QUALITY_INTERVAL_SECONDS: "15"
     depends_on:
       opensearch:
         condition: service_healthy

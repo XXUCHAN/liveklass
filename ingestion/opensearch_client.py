@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from opensearchpy import OpenSearch, helpers
+from opensearchpy.exceptions import NotFoundError
 
 from ingestion.settings import IngestionSettings, settings
 
@@ -49,6 +50,9 @@ def _clickstream_index_mapping() -> dict[str, Any]:
                 "error_message": {"type": "text"},
                 "event_time": {"type": "date"},
                 "received_at": {"type": "date"},
+                "ingested_at": {"type": "date"},
+                "arrival_lag_seconds": {"type": "float"},
+                "is_late_arrival": {"type": "boolean"},
             }
         },
     }
@@ -79,6 +83,23 @@ def _data_quality_index_mapping() -> dict[str, Any]:
                 "failed_count": {"type": "integer"},
                 "checked_at": {"type": "date"},
                 "details": {"type": "object", "enabled": True},
+            }
+        },
+    }
+
+
+def _quality_checkpoint_index_mapping() -> dict[str, Any]:
+    return {
+        **_base_index_settings(),
+        "mappings": {
+            "properties": {
+                "job_name": {"type": "keyword"},
+                "last_checked_ingested_at": {"type": "date"},
+                "last_checked_at": {"type": "date"},
+                "last_run_cutoff": {"type": "date"},
+                "overlap_window_seconds": {"type": "integer"},
+                "last_incremental_count": {"type": "integer"},
+                "last_window_count": {"type": "integer"},
             }
         },
     }
@@ -116,6 +137,10 @@ class OpenSearchService:
         self._ensure_index(self.settings.clickstream_index, _clickstream_index_mapping())
         self._ensure_index(self.settings.dead_letter_index, _dead_letter_index_mapping())
         self._ensure_index(self.settings.data_quality_index, _data_quality_index_mapping())
+        self._ensure_index(
+            self.settings.quality_checkpoint_index,
+            _quality_checkpoint_index_mapping(),
+        )
 
     def _ensure_index(self, index_name: str, body: dict[str, Any]) -> None:
         if self.client.indices.exists(index=index_name):
@@ -174,6 +199,23 @@ class OpenSearchService:
     def index_quality_result(self, document: dict[str, Any]) -> dict[str, Any]:
         self.client.index(index=self.settings.data_quality_index, body=document)
         return document
+
+    def get_quality_checkpoint(self, job_name: str) -> dict[str, Any] | None:
+        try:
+            response = self.client.get(index=self.settings.quality_checkpoint_index, id=job_name)
+        except NotFoundError:
+            return None
+        return response.get("_source")
+
+    def upsert_quality_checkpoint(self, job_name: str, document: dict[str, Any]) -> dict[str, Any]:
+        payload = {"job_name": job_name, **document}
+        self.client.index(
+            index=self.settings.quality_checkpoint_index,
+            id=job_name,
+            body=payload,
+            refresh=True,
+        )
+        return payload
 
 
 def build_dead_letter_document(

@@ -18,6 +18,7 @@ class IngestionSettings:
     clickstream_index: str
     dead_letter_index: str
     data_quality_index: str
+    quality_checkpoint_index: str
     batch_size: int
     flush_interval_seconds: float
     max_queue_size: int
@@ -25,6 +26,7 @@ class IngestionSettings:
     startup_retries: int
     startup_retry_delay_seconds: float
     log_invalid_payloads: bool
+    late_arrival_threshold_seconds: float
 
     @classmethod
     def from_env(cls) -> "IngestionSettings":
@@ -35,6 +37,9 @@ class IngestionSettings:
             clickstream_index=os.getenv("CLICKSTREAM_INDEX", "clickstream-events"),
             dead_letter_index=os.getenv("DEAD_LETTER_INDEX", "dead-letter-events"),
             data_quality_index=os.getenv("DATA_QUALITY_INDEX", "data-quality-results"),
+            quality_checkpoint_index=os.getenv(
+                "QUALITY_CHECKPOINT_INDEX", "quality-checkpoints"
+            ),
             batch_size=int(os.getenv("BATCH_SIZE", "100")),
             flush_interval_seconds=float(os.getenv("FLUSH_INTERVAL_SECONDS", "2")),
             max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10000")),
@@ -44,6 +49,9 @@ class IngestionSettings:
                 os.getenv("OPENSEARCH_STARTUP_RETRY_DELAY_SECONDS", "2")
             ),
             log_invalid_payloads=_parse_bool(os.getenv("LOG_INVALID_PAYLOADS"), default=True),
+            late_arrival_threshold_seconds=float(
+                os.getenv("LATE_ARRIVAL_THRESHOLD_SECONDS", "3600")
+            ),
         )
 
 

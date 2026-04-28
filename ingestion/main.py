@@ -103,7 +103,10 @@ async def ingest_events(payload: Any = Body(...)) -> dict[str, Any]:
     dead_letter_documents: list[dict[str, Any]] = []
 
     for raw_event in raw_events:
-        validation_result = validate_event(raw_event)
+        validation_result = validate_event(
+            raw_event,
+            late_arrival_threshold_seconds=current_runtime.settings.late_arrival_threshold_seconds,
+        )
         if validation_result.is_valid and validation_result.normalized_event is not None:
             valid_events.append(validation_result.normalized_event)
             continue

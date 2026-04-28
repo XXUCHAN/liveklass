@@ -63,8 +63,15 @@ def _coerce_float(value: Any) -> float | None:
     return None
 
 
-def _validate_common_fields(event: dict[str, Any], errors: list[str]) -> dict[str, Any]:
+def _validate_common_fields(
+    event: dict[str, Any],
+    errors: list[str],
+    *,
+    late_arrival_threshold_seconds: float,
+) -> dict[str, Any]:
     normalized = dict(event)
+    ingested_at = datetime.now(UTC)
+    normalized["ingested_at"] = _format_timestamp(ingested_at)
 
     for required_field in ("event_id", "schema_version", "user_id", "session_id"):
         if not _is_non_empty_string(normalized.get(required_field)):
@@ -84,13 +91,18 @@ def _validate_common_fields(event: dict[str, Any], errors: list[str]) -> dict[st
 
     received_at_value = normalized.get("received_at")
     if received_at_value is None:
-        normalized["received_at"] = _format_timestamp(datetime.now(UTC))
+        normalized["received_at"] = _format_timestamp(ingested_at)
     else:
         received_at = _parse_timestamp(received_at_value)
         if received_at is None:
             errors.append("received_at must be a parseable timestamp when provided")
         else:
             normalized["received_at"] = _format_timestamp(received_at)
+
+    if event_time is not None:
+        arrival_lag_seconds = max(0.0, (ingested_at - event_time).total_seconds())
+        normalized["arrival_lag_seconds"] = round(arrival_lag_seconds, 3)
+        normalized["is_late_arrival"] = arrival_lag_seconds > late_arrival_threshold_seconds
 
     device = normalized.get("device")
     if not _is_non_empty_string(device):
@@ -190,12 +202,20 @@ def _validate_error(event: dict[str, Any], errors: list[str]) -> None:
         errors.append("error_message is required for error event")
 
 
-def validate_event(event: Any) -> ValidationResult:
+def validate_event(
+    event: Any,
+    *,
+    late_arrival_threshold_seconds: float = 3600.0,
+) -> ValidationResult:
     if not isinstance(event, dict):
         return ValidationResult(is_valid=False, errors=["event payload must be an object"])
 
     errors: list[str] = []
-    normalized = _validate_common_fields(event, errors)
+    normalized = _validate_common_fields(
+        event,
+        errors,
+        late_arrival_threshold_seconds=late_arrival_threshold_seconds,
+    )
     event_type = normalized.get("event_type")
 
     if event_type == "page_view":

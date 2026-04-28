@@ -1,0 +1,63 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.14.0
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: ["python", "ingestion/main.py"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  generator:
+    build:
+      context: .
+      dockerfile: Dockerfile.generator
+    command: ["python", "generator/main.py"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  quality:
+    build:
+      context: .
+      dockerfile: Dockerfile.job
+    command: ["python", "quality/check_quality.py"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  analytics:
+    build:
+      context: .
+      dockerfile: Dockerfile.job
+    command: ["python", "analytics/aggregate.py"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      quality:
+        condition: service_started
+    volumes:
+      - ./output:/app/output
+
+volumes:
+  opensearch-data:

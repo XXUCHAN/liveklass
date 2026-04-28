@@ -1,0 +1,1 @@
+"""FastAPI ingestion service entrypoint."""

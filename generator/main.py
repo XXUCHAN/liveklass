@@ -1,0 +1,1 @@
+"""Clickstream event generator entrypoint."""

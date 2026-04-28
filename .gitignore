@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+output/aggregations/*.json
+output/charts/*.png
+opensearch-data/
+tests/

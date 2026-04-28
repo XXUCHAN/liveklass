@@ -2,9 +2,10 @@ services:
   opensearch:
     image: opensearchproject/opensearch:2.14.0
     environment:
-      discovery.type: single-node
-      plugins.security.disabled: "true"
       OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      discovery.type: single-node
     ports:
       - "9200:9200"
     volumes:
@@ -15,11 +16,41 @@ services:
       timeout: 5s
       retries: 20
 
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.14.0
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+      SERVER_HOST: "0.0.0.0"
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5601/api/status >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
-    command: ["python", "ingestion/main.py"]
+    command: ["python", "-m", "ingestion.main"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     depends_on:
       opensearch:
         condition: service_healthy
@@ -28,12 +59,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.generator
-    command: ["python", "generator/main.py"]
+    command: ["python", "-m", "generator.main"]
+    environment:
+      SEND_TO_API: "true"
     depends_on:
       opensearch:
         condition: service_healthy
       api:
-        condition: service_started
+        condition: service_healthy
 
   quality:
     build:

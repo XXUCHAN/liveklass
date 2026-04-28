@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
-CMD ["python", "generator/main.py"]
+CMD ["python", "-m", "generator.main"]

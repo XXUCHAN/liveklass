@@ -337,7 +337,7 @@ class ClickstreamGenerator:
             "device": device,
             **fields,
         }
-
+    # DEMO용 보정
     def _ensure_event_type_coverage(self, events: list[dict[str, Any]]) -> None:
         counts = Counter(event["event_type"] for event in events)
         if not events:

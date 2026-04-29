@@ -240,9 +240,9 @@ DLQ 동작을 확인하기 위해, generator는 일정 확률로 `device` 필드
 
 - 이벤트 타입별 발생 횟수
 - 에러 이벤트 비율
-- Rank별 CTR
-- Popularity bucket별 CTR
-- Presentation type별 CTR
+- Rank별 Raw CTR / Regression-adjusted CTR
+- Popularity bucket별 Raw CTR / Rank-standardized CTR / Regression-adjusted CTR
+- Presentation type별 Raw CTR / Rank-standardized CTR / Regression-adjusted CTR
 
 집계 로직은 도메인별로 분리했다.
 
@@ -263,6 +263,16 @@ DLQ 동작을 확인하기 위해, generator는 일정 확률로 `device` 필드
 - `output/aggregations/rank_ctr.json`
 - `output/aggregations/popularity_ctr.json`
 - `output/aggregations/presentation_ctr.json`
+
+클릭 관련 집계는 단순 CTR만 보여주지 않고 세 단계로 나눠 비교한다.  
+`raw_ctr`는 편향이 섞인 관측값이고, `rank_standardized_ctr`는 popularity/presentation 그룹을 rank별로 나눠 본 뒤 전체 rank 분포로 가중 평균한 1차 보정값이다.  
+`regression_adjusted_ctr`는 `click ~ rank + device + presentation + popularity` 형태의 로지스틱 회귀로 클릭 확률을 추정한 뒤, 동일한 기준 분포에서 각 그룹의 보정 CTR을 계산한 2차 보정값이다.
+
+현재 결과 해석은 아래 기준으로 본다.
+
+- `rank_ctr`: `raw_ctr`로 position bias가 얼마나 강한지 보고, `regression_adjusted_ctr`로 다른 요인을 통제했을 때 rank 효과가 얼마나 남는지 본다.
+- `popularity_ctr`: `rank_standardized_ctr`를 주 해석 지표로 사용한다. popularity 항목의 `regression_adjusted_ctr`는 추가 보정 시도 결과로 저장하지만, 현재 단순 모델에서는 과보정 가능성이 있어 보조 지표로 본다.
+- `presentation_ctr`: `raw_ctr`, `rank_standardized_ctr`, `regression_adjusted_ctr`가 비슷한 방향으로 움직이는지 보고, UI 표현 효과가 안정적으로 관측되는지 확인한다.
 
 ## 9. Dashboards 확인
 
@@ -308,17 +318,60 @@ GET data-quality-results/_search
 - `output/charts/popularity_ctr.png`
 - `output/charts/presentation_ctr.png`
 
+시각화는 단순 클릭 수가 아니라 `raw CTR`, `rank-standardized CTR`, `regression-adjusted CTR`를 비교하는 방향으로 구성했다.
+
 ## 11. 구현하면서 고민한 점
 
 - 완전 랜덤 로그보다 실제 사용자 흐름처럼 보이는 클릭스트림을 만드는 것이 더 중요하다고 판단해 세션 기반으로 이벤트를 설계했다.
 - `impression`과 `click`을 분리해야 CTR과 bias 기반 분석이 가능하다고 봤다.
+- 클릭 분석은 처음에는 generator가 기록한 bias 값을 직접 쓰는 보정 방식으로 시작했지만, 그보다 관측된 로그만으로 해석 가능한 `rank-standardized CTR`과 `regression-adjusted CTR`이 더 설득력 있다고 판단해 집계 방향을 바꿨다.
 - 저장 전 validation과 저장 후 quality check는 역할이 다르기 때문에 분리하는 쪽이 자연스럽다고 판단했다.
 - 품질 점검은 전체 스캔보다 `ingested_at` 기반 증분 검사와 체크포인트 방식이 더 적절하다고 판단했다.
 - 제출 환경을 고려해 `.env` 없이도 `docker compose up`으로 실행되도록 기본값 중심으로 구성했다.
 - generator는 주기적으로 이벤트를 넣도록 두고, analytics와 visualizer는 한 번 실행 후 종료되는 배치 잡으로 분리했다. 계속 실행되는 서비스와 결과물을 만드는 배치 작업의 성격이 다르다고 판단했기 때문이다.
 - 큐는 Kafka 같은 외부 메시지 시스템 대신 in-memory queue로 구현했다. 과제 범위에서는 구조를 이해하기 쉽게 유지하는 것이 더 중요하다고 판단했고, 대신 batch flush와 queue size 제한으로 기본적인 적재 흐름은 확인할 수 있게 했다.
 
-## 12. 한계
+## 12. 한계 및 확장성
 
-- in-memory queue라서 프로세스 종료 시 메모리 버퍼는 유실될 수 있다.
-- invalid event를 의도적으로 대량 생성하는 시나리오는 아직 추가하지 않았다.
+- 현재는 in-memory queue를 사용하므로 프로세스 종료 시 메모리 버퍼가 유실될 수 있다.
+- 이벤트 유입량이 커지는 환경에서는 이 부분을 Kafka, Kinesis 같은 durable queue로 교체하는 방향을 고려했다.
+- 현재는 단일 OpenSearch 노드 기준이지만, 실제 확장 시에는 인덱스 분할, rollover, shard 조정으로 대응할 수 있다.
+- generator, ingestion, quality, analytics, visualizer를 분리해 두었기 때문에 트래픽 증가 시 각 단계를 독립적으로 확장하기 쉽다.
+- invalid event는 `device` 누락 한 가지 시나리오만 사용하고 있어, 더 다양한 실패 유형 검증은 추가 여지가 있다.
+- `regression_adjusted_ctr`는 경량 로지스틱 회귀 기반의 보정이므로, 변수 간 복잡한 상호작용이나 더 정교한 causal correction까지는 반영하지 못한다. 현재 결과에서는 popularity 항목에서 `rank_standardized_ctr`가 더 안정적인 해석 지표로 보였다.
+
+## 13. 선택 A. Kubernetes
+
+`k8s/` 아래에 이벤트 생성기 배포를 가정한 manifest 파일을 추가했다.
+
+- `k8s/namespace.yaml`
+- `k8s/generator-configmap.yaml`
+- `k8s/generator-deployment.yaml`
+
+선택한 리소스의 역할:
+
+- `Namespace`: 관련 리소스를 `liveklass` 네임스페이스로 분리한다.
+- `ConfigMap`: generator 실행 설정값을 환경변수로 주입한다.
+- `Deployment`: generator 컨테이너를 실행하고, 장애 시 다시 시작되도록 관리한다.
+
+선택한 이유:
+
+- generator는 주기적으로 이벤트를 계속 생성하는 구조라 `Deployment`로 운영하는 것이 자연스럽다고 판단했다.
+- 실행 설정은 코드와 분리하는 것이 좋기 때문에 `ConfigMap`을 사용했다.
+- 작은 과제라도 리소스를 분리해서 관리하는 편이 이후 확장이나 운영 설명에 더 적합하다고 판단했다.
+
+## 14. 선택 B. AWS 기초 이해
+
+AWS 운영 아키텍처 구성도는 [aws-architecture.md](/Users/xxuchan/Desktop/logPipeline/docs/aws-architecture.md) 에 정리했다.
+
+사용한 AWS 서비스와 역할은 아래와 같다.
+
+- `ECS Fargate`: generator, ingestion API, quality/analytics 배치 잡 실행
+- `Amazon OpenSearch Service`: 이벤트 저장, 검색, 집계
+- `Amazon S3`: 집계 JSON과 차트 이미지 저장
+- `Amazon EventBridge`: generator와 배치 잡의 주기 실행 스케줄링
+- `Amazon CloudWatch`: 로그와 상태 모니터링
+
+서비스 역할 차이를 간단히 설명하면, ECS Fargate는 코드를 실행하는 환경이고, OpenSearch는 로그를 저장하고 조회하는 저장소이며, S3는 결과 파일을 보관하는 스토리지다. EventBridge는 주기 실행을 담당하고, CloudWatch는 운영 중 로그와 상태를 확인하는 역할을 한다.
+
+가장 고민한 부분은 ingestion API 뒤에 durable queue를 둘지 여부였다. 현재 과제 구현은 in-memory queue로 충분하지만, 실제 AWS 운영 환경에서는 트래픽 급증과 장애 상황을 고려하면 SQS나 Kinesis를 중간에 두는 것이 더 안전하다. 이번 설계에서는 현재 코드 구조를 최대한 자연스럽게 확장하는 방향을 우선해 `API → OpenSearch` 흐름을 유지하고, 이후 queue를 추가하는 방향을 고려했다.

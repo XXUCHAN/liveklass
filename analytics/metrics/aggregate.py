@@ -13,7 +13,7 @@ try:
     from analytics.metrics.click.popularity_ctr import build_metric as build_popularity_ctr
     from analytics.metrics.click.presentation_ctr import build_metric as build_presentation_ctr
     from analytics.metrics.click.rank_ctr import build_metric as build_rank_ctr
-    from analytics.metrics.helper import load_events
+    from analytics.metrics.helper import build_impression_samples, fit_logistic_click_model, load_events
     from common.parsing import format_timestamp, utc_now
     from storage.opensearch_client import create_opensearch_service
 except ModuleNotFoundError:
@@ -28,14 +28,18 @@ except ModuleNotFoundError:
     from analytics.metrics.click.popularity_ctr import build_metric as build_popularity_ctr  # type: ignore[no-redef]
     from analytics.metrics.click.presentation_ctr import build_metric as build_presentation_ctr  # type: ignore[no-redef]
     from analytics.metrics.click.rank_ctr import build_metric as build_rank_ctr  # type: ignore[no-redef]
-    from analytics.metrics.helper import load_events  # type: ignore[no-redef]
+    from analytics.metrics.helper import build_impression_samples, fit_logistic_click_model, load_events  # type: ignore[no-redef]
     from common.parsing import format_timestamp, utc_now  # type: ignore[no-redef]
     from storage.opensearch_client import create_opensearch_service  # type: ignore[no-redef]
 
 
 CLICK_METRIC_SOURCE_FIELDS = [
     "event_type",
+    "session_id",
+    "query",
+    "item_id",
     "rank",
+    "device",
     "popularity_bucket",
     "presentation_type",
 ]
@@ -110,6 +114,8 @@ def main() -> None:
         source_fields=CLICK_METRIC_SOURCE_FIELDS,
         event_types=["impression", "click"],
     )
+    impression_samples = build_impression_samples(click_events)
+    click_model = fit_logistic_click_model(impression_samples)
 
     event_type_counts = build_event_type_counts(
         service,
@@ -122,19 +128,22 @@ def main() -> None:
         total_event_count=total_event_count,
     )
     rank_ctr = build_rank_ctr(
-        click_events,
+        impression_samples,
         generated_at=generated_at,
         total_event_count=total_event_count,
+        model=click_model,
     )
     popularity_ctr = build_popularity_ctr(
-        click_events,
+        impression_samples,
         generated_at=generated_at,
         total_event_count=total_event_count,
+        model=click_model,
     )
     presentation_ctr = build_presentation_ctr(
-        click_events,
+        impression_samples,
         generated_at=generated_at,
         total_event_count=total_event_count,
+        model=click_model,
     )
 
     outputs = {
@@ -155,6 +164,7 @@ def main() -> None:
                 "generated_at": generated_at,
                 "total_event_count": total_event_count,
                 "loaded_click_events": len(click_events),
+                "loaded_impression_samples": len(impression_samples),
                 "output_files": sorted(outputs),
             },
             indent=2,

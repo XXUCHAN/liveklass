@@ -1,66 +1,76 @@
 {
-  "generated_at": "2026-04-29T10:58:14Z",
-  "total_event_count": 43100,
+  "generated_at": "2026-04-29T18:37:23Z",
+  "total_event_count": 14518,
   "rows": [
     {
       "rank": 1,
-      "impressions": 3178,
-      "clicks": 2900,
-      "ctr": 0.912524
+      "impressions": 1071,
+      "clicks": 976,
+      "raw_ctr": 0.911298,
+      "regression_adjusted_ctr": 0.812431
     },
     {
       "rank": 2,
-      "impressions": 3178,
-      "clicks": 2381,
-      "ctr": 0.749213
+      "impressions": 1071,
+      "clicks": 813,
+      "raw_ctr": 0.759104,
+      "regression_adjusted_ctr": 0.60723
     },
     {
       "rank": 3,
-      "impressions": 3178,
-      "clicks": 570,
-      "ctr": 0.179358
+      "impressions": 1071,
+      "clicks": 184,
+      "raw_ctr": 0.171802,
+      "regression_adjusted_ctr": 0.357879
     },
     {
       "rank": 4,
-      "impressions": 3178,
-      "clicks": 194,
-      "ctr": 0.061045
+      "impressions": 1071,
+      "clicks": 53,
+      "raw_ctr": 0.049486,
+      "regression_adjusted_ctr": 0.166053
     },
     {
       "rank": 5,
-      "impressions": 3178,
-      "clicks": 60,
-      "ctr": 0.01888
+      "impressions": 1071,
+      "clicks": 27,
+      "raw_ctr": 0.02521,
+      "regression_adjusted_ctr": 0.065338
     },
     {
       "rank": 6,
-      "impressions": 3178,
-      "clicks": 41,
-      "ctr": 0.012901
+      "impressions": 1071,
+      "clicks": 13,
+      "raw_ctr": 0.012138,
+      "regression_adjusted_ctr": 0.023666
     },
     {
       "rank": 7,
-      "impressions": 3178,
-      "clicks": 23,
-      "ctr": 0.007237
+      "impressions": 1071,
+      "clicks": 11,
+      "raw_ctr": 0.010271,
+      "regression_adjusted_ctr": 0.008288
     },
     {
       "rank": 8,
-      "impressions": 3178,
-      "clicks": 13,
-      "ctr": 0.004091
+      "impressions": 1071,
+      "clicks": 4,
+      "raw_ctr": 0.003735,
+      "regression_adjusted_ctr": 0.002866
     },
     {
       "rank": 9,
-      "impressions": 3178,
-      "clicks": 9,
-      "ctr": 0.002832
+      "impressions": 1071,
+      "clicks": 4,
+      "raw_ctr": 0.003735,
+      "regression_adjusted_ctr": 0.000987
     },
     {
       "rank": 10,
-      "impressions": 3178,
-      "clicks": 3,
-      "ctr": 0.000944
+      "impressions": 1071,
+      "clicks": 1,
+      "raw_ctr": 0.000934,
+      "regression_adjusted_ctr": 0.000339
     }
   ]
 }

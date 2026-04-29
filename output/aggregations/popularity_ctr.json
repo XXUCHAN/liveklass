@@ -1,24 +1,33 @@
 {
-  "generated_at": "2026-04-29T10:58:14Z",
-  "total_event_count": 43100,
+  "generated_at": "2026-04-29T18:37:23Z",
+  "total_event_count": 14518,
   "rows": [
     {
-      "group": "high",
-      "impressions": 11926,
-      "clicks": 2847,
-      "ctr": 0.238722
-    },
-    {
       "group": "low",
-      "impressions": 2833,
-      "clicks": 262,
-      "ctr": 0.092481
+      "impressions": 958,
+      "clicks": 97,
+      "raw_ctr": 0.101253,
+      "rank_standardized_ctr": 0.146319,
+      "regression_adjusted_ctr": 0.239359,
+      "rank_weight_coverage": 1.0
     },
     {
       "group": "medium",
-      "impressions": 17021,
-      "clicks": 3085,
-      "ctr": 0.181247
+      "impressions": 5790,
+      "clicks": 1065,
+      "raw_ctr": 0.183938,
+      "rank_standardized_ctr": 0.188118,
+      "regression_adjusted_ctr": 0.18291,
+      "rank_weight_coverage": 1.0
+    },
+    {
+      "group": "high",
+      "impressions": 3962,
+      "clicks": 924,
+      "raw_ctr": 0.233216,
+      "rank_standardized_ctr": 0.215693,
+      "regression_adjusted_ctr": 0.227865,
+      "rank_weight_coverage": 1.0
     }
   ]
 }

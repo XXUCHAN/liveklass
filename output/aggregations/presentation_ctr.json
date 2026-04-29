@@ -1,30 +1,42 @@
 {
-  "generated_at": "2026-04-29T10:58:14Z",
-  "total_event_count": 43100,
+  "generated_at": "2026-04-29T18:37:23Z",
+  "total_event_count": 14518,
   "rows": [
     {
       "group": "discount_badge",
-      "impressions": 5650,
-      "clicks": 1180,
-      "ctr": 0.20885
+      "impressions": 1923,
+      "clicks": 430,
+      "raw_ctr": 0.223609,
+      "rank_standardized_ctr": 0.213809,
+      "regression_adjusted_ctr": 0.244736,
+      "rank_weight_coverage": 1.0
     },
     {
       "group": "featured_card",
-      "impressions": 4859,
-      "clicks": 1059,
-      "ctr": 0.217946
+      "impressions": 1656,
+      "clicks": 347,
+      "raw_ctr": 0.209541,
+      "rank_standardized_ctr": 0.209195,
+      "regression_adjusted_ctr": 0.216923,
+      "rank_weight_coverage": 1.0
     },
     {
       "group": "live_badge",
-      "impressions": 3871,
-      "clicks": 814,
-      "ctr": 0.210282
+      "impressions": 1355,
+      "clicks": 286,
+      "raw_ctr": 0.21107,
+      "rank_standardized_ctr": 0.207868,
+      "regression_adjusted_ctr": 0.217639,
+      "rank_weight_coverage": 1.0
     },
     {
       "group": "normal_card",
-      "impressions": 17400,
-      "clicks": 3141,
-      "ctr": 0.180517
+      "impressions": 5776,
+      "clicks": 1023,
+      "raw_ctr": 0.177112,
+      "rank_standardized_ctr": 0.180822,
+      "regression_adjusted_ctr": 0.182697,
+      "rank_weight_coverage": 1.0
     }
   ]
 }

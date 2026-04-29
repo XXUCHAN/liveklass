@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-generator
+  namespace: liveklass
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-generator
+  template:
+    metadata:
+      labels:
+        app: event-generator
+    spec:
+      containers:
+        - name: event-generator
+          image: logpipeline-generator:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "generator.main"]
+          envFrom:
+            - configMapRef:
+                name: event-generator-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

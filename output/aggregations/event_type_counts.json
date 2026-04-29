@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-29T10:58:14Z",
-  "total_event_count": 43100,
+  "generated_at": "2026-04-29T18:37:23Z",
+  "total_event_count": 14518,
   "counts": {
-    "click": 6194,
-    "error": 474,
-    "impression": 31780,
-    "page_view": 3178,
-    "purchase": 1474
+    "click": 2100,
+    "error": 161,
+    "impression": 10780,
+    "page_view": 1078,
+    "purchase": 494
   }
 }

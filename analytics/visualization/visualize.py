@@ -90,15 +90,18 @@ def _plot_error_event_ratio(payload: dict[str, Any], output_path: Path) -> None:
 def _plot_rank_ctr(payload: dict[str, Any], output_path: Path) -> None:
     rows = payload.get("rows", [])
     ranks = [int(row["rank"]) for row in rows]
-    ctr_values = [float(row["ctr"]) * 100 for row in rows]
+    raw_ctr_values = [float(row["raw_ctr"]) * 100 for row in rows]
+    adjusted_ctr_values = [float(row["regression_adjusted_ctr"]) * 100 for row in rows]
 
     plt.figure(figsize=(8, 4.8))
-    plt.plot(ranks, ctr_values, marker="o", color="#F18F01")
-    plt.title("CTR by Rank")
+    plt.plot(ranks, raw_ctr_values, marker="o", color="#F18F01", label="Raw CTR")
+    plt.plot(ranks, adjusted_ctr_values, marker="o", color="#2E86AB", label="Regression-adjusted CTR")
+    plt.title("Raw vs Regression-adjusted CTR by Rank")
     plt.xlabel("Rank")
     plt.ylabel("CTR (%)")
     plt.xticks(ranks)
     plt.ylim(bottom=0)
+    plt.legend()
     _save_figure(output_path)
 
 
@@ -107,18 +110,43 @@ def _plot_group_ctr(
     output_path: Path,
     *,
     title: str,
-    color: str,
 ) -> None:
     rows = payload.get("rows", [])
     groups = [str(row["group"]) for row in rows]
-    ctr_values = [float(row["ctr"]) * 100 for row in rows]
+    raw_ctr_values = [float(row["raw_ctr"]) * 100 for row in rows]
+    standardized_ctr_values = [float(row["rank_standardized_ctr"]) * 100 for row in rows]
+    adjusted_ctr_values = [float(row["regression_adjusted_ctr"]) * 100 for row in rows]
+    positions = list(range(len(groups)))
+    bar_width = 0.24
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(groups, ctr_values, color=color)
+    plt.bar(
+        [position - bar_width for position in positions],
+        raw_ctr_values,
+        width=bar_width,
+        color="#F18F01",
+        label="Raw CTR",
+    )
+    plt.bar(
+        positions,
+        standardized_ctr_values,
+        width=bar_width,
+        color="#7FB069",
+        label="Rank-standardized CTR",
+    )
+    plt.bar(
+        [position + bar_width for position in positions],
+        adjusted_ctr_values,
+        width=bar_width,
+        color="#2E86AB",
+        label="Regression-adjusted CTR",
+    )
     plt.title(title)
     plt.xlabel("Group")
     plt.ylabel("CTR (%)")
+    plt.xticks(positions, groups)
     plt.ylim(bottom=0)
+    plt.legend()
     _save_figure(output_path)
 
 
@@ -141,14 +169,12 @@ def main() -> None:
     _plot_group_ctr(
         popularity_ctr,
         settings.charts_dir / "popularity_ctr.png",
-        title="CTR by Popularity Bucket",
-        color="#5C946E",
+        title="Raw / Rank-standardized / Regression-adjusted CTR by Popularity Bucket",
     )
     _plot_group_ctr(
         presentation_ctr,
         settings.charts_dir / "presentation_ctr.png",
-        title="CTR by Presentation Type",
-        color="#7D5BA6",
+        title="Raw / Rank-standardized / Regression-adjusted CTR by Presentation Type",
     )
 
     print(

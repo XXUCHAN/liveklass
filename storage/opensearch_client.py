@@ -7,8 +7,8 @@ from uuid import uuid4
 from opensearchpy import OpenSearch, helpers
 from opensearchpy.exceptions import NotFoundError
 
-from common.parsing import utc_timestamp
 from ingestion.settings import IngestionSettings, settings
+from common.parsing import utc_timestamp
 
 
 def _base_index_settings() -> dict[str, Any]:
@@ -238,4 +238,3 @@ def build_dead_letter_document(
 
 def create_opensearch_service(app_settings: IngestionSettings | None = None) -> OpenSearchService:
     return OpenSearchService(app_settings or settings)
-

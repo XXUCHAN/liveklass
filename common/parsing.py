@@ -53,3 +53,4 @@ def coerce_float(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     return None
+

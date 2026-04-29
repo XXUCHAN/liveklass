@@ -103,9 +103,9 @@ class GeneratorSettings:
             request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "10")),
             health_retries=int(os.getenv("API_HEALTH_RETRIES", "30")),
             retry_delay_seconds=float(os.getenv("API_RETRY_DELAY_SECONDS", "2")),
-            cycle_interval_seconds=float(os.getenv("GENERATOR_INTERVAL_SECONDS", "10")),
+            cycle_interval_seconds=float(os.getenv("GENERATOR_INTERVAL_SECONDS", "60")),
             max_cycles=int(os.getenv("GENERATOR_MAX_CYCLES", "0")),
-            seed=int(os.getenv("GENERATOR_SEED", "7")),
+            seed=int(os.getenv("GENERATOR_SEED", "50")),
             ensure_all_event_types=parse_bool(os.getenv("ENSURE_ALL_EVENT_TYPES"), default=True),
         )
 

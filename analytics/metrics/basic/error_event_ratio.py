@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from analytics.helpers import build_output, safe_ratio
+from analytics.metrics.helper import build_output, safe_ratio
 
 
 def build_metric(

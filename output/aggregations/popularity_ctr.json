@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-04-29T08:53:45Z",
+  "total_event_count": 6156,
+  "rows": [
+    {
+      "group": "high",
+      "impressions": 1702,
+      "clicks": 409,
+      "ctr": 0.240306
+    },
+    {
+      "group": "low",
+      "impressions": 400,
+      "clicks": 33,
+      "ctr": 0.0825
+    },
+    {
+      "group": "medium",
+      "impressions": 2448,
+      "clicks": 445,
+      "ctr": 0.181781
+    }
+  ]
+}

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from analytics.helpers import build_output
-from analytics.io import search_aggregation
+from analytics.metrics.helper import build_output, search_aggregation
 
 
 def build_metric(

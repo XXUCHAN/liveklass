@@ -9,10 +9,9 @@ OpenSearch 기반 클릭스트림 이벤트 파이프라인 과제입니다.
 - Step 2. 로그 저장
 - Step 3. 데이터 집계 분석
 - Step 4. Docker Compose 기반 실행
+- Step 5. 결과 시각화
 - 저장 후 데이터 품질 점검
 - OpenSearch Dashboards 연동
-
-현재 `analytics/visualize.py`를 통한 PNG 차트 생성은 아직 구현하지 않았고, 시각화는 OpenSearch Dashboards로 확인할 수 있습니다.
 
 ## 2. 아키텍처
 
@@ -31,6 +30,9 @@ OpenSearch
         ↓
 Analytics Batch
   └── output/aggregations/*.json
+        ↓
+Visualization Batch
+  └── output/charts/*.png
         ↓
 OpenSearch Dashboards
 ```
@@ -60,6 +62,11 @@ curl http://localhost:9200/clickstream-events/_count
 - Ingestion API: `http://localhost:8000/health`
 - OpenSearch: `http://localhost:9200`
 - OpenSearch Dashboards: `http://localhost:5601`
+
+산출물:
+
+- 집계 JSON: `output/aggregations/`
+- 차트 PNG: `output/charts/`
 
 ## 4. 이벤트 설계
 
@@ -190,6 +197,8 @@ curl http://localhost:9200/clickstream-events/_count
 
 집계 로직은 도메인별로 분리했다.
 
+- `analytics/metrics/aggregate.py`
+- `analytics/metrics/helper.py`
 - `analytics/metrics/basic`
   - `event_type_counts.py`
   - `error_event_ratio.py`
@@ -228,7 +237,19 @@ GET data-quality-results/_search
 }
 ```
 
-## 10. 구현하면서 고민한 점
+## 10. 시각화
+
+집계 결과 JSON을 읽어 아래 PNG 파일을 생성한다.
+
+- `analytics/visualization/visualize.py`
+
+- `output/charts/event_type_counts.png`
+- `output/charts/error_event_ratio.png`
+- `output/charts/rank_ctr.png`
+- `output/charts/popularity_ctr.png`
+- `output/charts/presentation_ctr.png`
+
+## 11. 구현하면서 고민한 점
 
 - 완전 랜덤 로그보다 실제 사용자 흐름처럼 보이는 클릭스트림을 만드는 것이 더 중요하다고 판단해 세션 기반으로 이벤트를 설계했다.
 - `impression`과 `click`을 분리해야 CTR과 bias 기반 분석이 가능하다고 봤다.
@@ -236,8 +257,7 @@ GET data-quality-results/_search
 - 품질 점검은 전체 스캔보다 `ingested_at` 기반 증분 검사와 체크포인트 방식이 더 적절하다고 판단했다.
 - 제출 환경을 고려해 `.env` 없이도 `docker compose up`으로 실행되도록 기본값 중심으로 구성했다.
 
-## 11. 한계
+## 12. 한계
 
 - in-memory queue라서 프로세스 종료 시 메모리 버퍼는 유실될 수 있다.
-- `analytics/visualize.py` 기반 PNG 차트 생성은 아직 구현하지 않았다.
 - invalid event를 의도적으로 대량 생성하는 시나리오는 아직 추가하지 않았다.

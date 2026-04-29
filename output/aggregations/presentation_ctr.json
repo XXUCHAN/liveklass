@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-04-29T08:53:45Z",
+  "total_event_count": 6156,
+  "rows": [
+    {
+      "group": "discount_badge",
+      "impressions": 825,
+      "clicks": 169,
+      "ctr": 0.204848
+    },
+    {
+      "group": "featured_card",
+      "impressions": 659,
+      "clicks": 125,
+      "ctr": 0.189681
+    },
+    {
+      "group": "live_badge",
+      "impressions": 567,
+      "clicks": 123,
+      "ctr": 0.216931
+    },
+    {
+      "group": "normal_card",
+      "impressions": 2499,
+      "clicks": 470,
+      "ctr": 0.188075
+    }
+  ]
+}

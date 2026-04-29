@@ -8,27 +8,27 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from analytics.io import load_events
     from analytics.metrics.basic.error_event_ratio import build_metric as build_error_event_ratio
     from analytics.metrics.basic.event_type_counts import build_metric as build_event_type_counts
     from analytics.metrics.click.popularity_ctr import build_metric as build_popularity_ctr
     from analytics.metrics.click.presentation_ctr import build_metric as build_presentation_ctr
     from analytics.metrics.click.rank_ctr import build_metric as build_rank_ctr
+    from analytics.metrics.helper import load_events
     from common.parsing import format_timestamp, utc_now
     from storage.opensearch_client import create_opensearch_service
 except ModuleNotFoundError:
     import sys
 
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
 
-    from analytics.io import load_events  # type: ignore[no-redef]
     from analytics.metrics.basic.error_event_ratio import build_metric as build_error_event_ratio  # type: ignore[no-redef]
     from analytics.metrics.basic.event_type_counts import build_metric as build_event_type_counts  # type: ignore[no-redef]
     from analytics.metrics.click.popularity_ctr import build_metric as build_popularity_ctr  # type: ignore[no-redef]
     from analytics.metrics.click.presentation_ctr import build_metric as build_presentation_ctr  # type: ignore[no-redef]
     from analytics.metrics.click.rank_ctr import build_metric as build_rank_ctr  # type: ignore[no-redef]
+    from analytics.metrics.helper import load_events  # type: ignore[no-redef]
     from common.parsing import format_timestamp, utc_now  # type: ignore[no-redef]
     from storage.opensearch_client import create_opensearch_service  # type: ignore[no-redef]
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from analytics.helpers import build_group_ctr_rows, build_output
+from analytics.metrics.helper import build_group_ctr_rows, build_output
 
 
 def build_metric(

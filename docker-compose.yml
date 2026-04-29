@@ -88,12 +88,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.job
-    command: ["python", "analytics/aggregate.py"]
+    command: ["python", "-u", "analytics/metrics/aggregate.py"]
     depends_on:
       opensearch:
         condition: service_healthy
       quality:
         condition: service_started
+    volumes:
+      - ./output:/app/output
+
+  visualizer:
+    build:
+      context: .
+      dockerfile: Dockerfile.job
+    command: ["python", "-u", "analytics/visualization/visualize.py"]
+    depends_on:
+      analytics:
+        condition: service_completed_successfully
     volumes:
       - ./output:/app/output
 

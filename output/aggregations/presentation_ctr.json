@@ -1,30 +1,30 @@
 {
-  "generated_at": "2026-04-29T08:53:45Z",
-  "total_event_count": 6156,
+  "generated_at": "2026-04-29T10:58:14Z",
+  "total_event_count": 43100,
   "rows": [
     {
       "group": "discount_badge",
-      "impressions": 825,
-      "clicks": 169,
-      "ctr": 0.204848
+      "impressions": 5650,
+      "clicks": 1180,
+      "ctr": 0.20885
     },
     {
       "group": "featured_card",
-      "impressions": 659,
-      "clicks": 125,
-      "ctr": 0.189681
+      "impressions": 4859,
+      "clicks": 1059,
+      "ctr": 0.217946
     },
     {
       "group": "live_badge",
-      "impressions": 567,
-      "clicks": 123,
-      "ctr": 0.216931
+      "impressions": 3871,
+      "clicks": 814,
+      "ctr": 0.210282
     },
     {
       "group": "normal_card",
-      "impressions": 2499,
-      "clicks": 470,
-      "ctr": 0.188075
+      "impressions": 17400,
+      "clicks": 3141,
+      "ctr": 0.180517
     }
   ]
 }

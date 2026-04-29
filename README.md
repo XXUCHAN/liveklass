@@ -44,13 +44,38 @@ OpenSearch Dashboards
 - Docker
 - Docker Compose
 
-### 실행
+### 설치 예시
+
+macOS(Homebrew) 기준 예시는 아래와 같다.
+
+```bash
+brew install --cask docker
+```
+
+설치 후 Docker Desktop을 실행한다.
+
+### 실행 순서
+
+1. 레포지토리 클론
+
+```bash
+git clone <repository-url>
+cd liveklass
+```
+
+2. 전체 스택 실행
 
 ```bash
 docker compose up
 ```
 
-### 확인
+코드 변경 후 이미지를 다시 반영해야 할 때는 아래 명령을 사용한다.
+
+```bash
+docker compose up --build
+```
+
+3. 동작 확인
 
 ```bash
 curl http://localhost:8000/health
@@ -81,7 +106,16 @@ curl http://localhost:9200/clickstream-events/_count
 - `purchase`
 - `error`
 
-`impression`과 `click`을 분리한 이유는 CTR 같은 클릭 기반 분석을 하기 위해서다.
+위 이벤트들은 온라인 강의 탐색 서비스에서 실제로 자주 발생하는 흐름을 기준으로 선택했다.
+
+- `page_view`: 사용자가 강의 목록 페이지에 진입했는지 확인하기 위한 기본 이벤트
+- `impression`: 어떤 강의가 몇 번째 위치에 노출되었는지 기록하기 위한 이벤트
+- `click`: 사용자가 실제로 관심을 보인 강의를 기록하기 위한 이벤트
+- `purchase`: 클릭 이후 구매 전환이 일어났는지 보기 위한 이벤트
+- `error`: 서비스 운영 중 발생할 수 있는 실패 상황을 추적하기 위한 이벤트
+
+특히 `impression`과 `click`을 분리한 이유는 CTR 같은 클릭 기반 분석을 하기 위해서다.  
+단순히 랜덤 이벤트를 생성하는 대신, `page_view → impression → click → purchase/error` 흐름이 보이도록 설계해 이후 집계와 시각화에서 의미 있는 패턴을 확인할 수 있게 했다.
 
 ### 클릭 생성 방식
 
@@ -128,6 +162,8 @@ curl http://localhost:9200/clickstream-events/_count
 - 정상 이벤트는 메모리 큐를 거쳐 OpenSearch bulk insert
 - 비정상 이벤트는 `dead-letter-events`에 저장
 
+DLQ 동작을 확인하기 위해, generator는 일정 확률로 `device` 필드가 누락된 invalid `page_view` 이벤트를 함께 생성한다.
+
 ### 인덱스 구성
 
 - `clickstream-events`: 정상 이벤트 저장
@@ -135,35 +171,46 @@ curl http://localhost:9200/clickstream-events/_count
 - `data-quality-results`: 품질 점검 결과 저장
 - `quality-checkpoints`: 증분 품질 점검 체크포인트 저장
 
+`dead-letter-events`에는 아래와 같은 필드가 저장된다.
+
+- `event_id`
+- `event_type`
+- `source_service`
+- `payload`
+- `error_reason`
+- `validation_errors`
+- `failed_stage`
+- `created_at`
+
 ## 6. 스키마 설명
 
 `clickstream-events`는 공통 필드와 이벤트별 상세 필드를 나눠 저장한다.  
 집계와 필터링이 많은 필드는 `keyword`, 시간 분석용 필드는 `date`, 수치 계산용 필드는 숫자 타입으로 두었다.
 
-| Field | Type |
-| --- | --- |
-| `event_id` | `keyword` |
-| `schema_version` | `keyword` |
-| `event_type` | `keyword` |
-| `user_id` | `keyword` |
-| `session_id` | `keyword` |
-| `device` | `keyword` |
-| `page_url` | `keyword` |
-| `query` | `keyword` |
-| `item_id` | `keyword` |
-| `rank` | `integer` |
-| `popularity_bucket` | `keyword` |
-| `presentation_type` | `keyword` |
-| `position_bias` | `float` |
-| `click_prob` | `float` |
-| `amount` | `float` |
-| `error_code` | `keyword` |
-| `error_message` | `text` |
-| `event_time` | `date` |
-| `received_at` | `date` |
-| `ingested_at` | `date` |
-| `arrival_lag_seconds` | `float` |
-| `is_late_arrival` | `boolean` |
+| Field                 | Type      |
+| --------------------- | --------- |
+| `event_id`            | `keyword` |
+| `schema_version`      | `keyword` |
+| `event_type`          | `keyword` |
+| `user_id`             | `keyword` |
+| `session_id`          | `keyword` |
+| `device`              | `keyword` |
+| `page_url`            | `keyword` |
+| `query`               | `keyword` |
+| `item_id`             | `keyword` |
+| `rank`                | `integer` |
+| `popularity_bucket`   | `keyword` |
+| `presentation_type`   | `keyword` |
+| `position_bias`       | `float`   |
+| `click_prob`          | `float`   |
+| `amount`              | `float`   |
+| `error_code`          | `keyword` |
+| `error_message`       | `text`    |
+| `event_time`          | `date`    |
+| `received_at`         | `date`    |
+| `ingested_at`         | `date`    |
+| `arrival_lag_seconds` | `float`   |
+| `is_late_arrival`     | `boolean` |
 
 ## 7. Validation과 Data Quality Check
 
@@ -171,6 +218,8 @@ curl http://localhost:9200/clickstream-events/_count
 
 - `validation`: ingestion 시점에 이벤트 1건씩 검사
 - `data quality check`: 저장된 이벤트를 다시 검사
+
+예를 들어 `device` 필드가 없는 이벤트는 validation 단계에서 실패하고, `dead-letter-events` 인덱스로 이동한다.
 
 품질 점검은 주기적으로 실행되며, `ingested_at`과 `quality-checkpoints`를 사용한 증분 검사 방식으로 동작한다.
 
@@ -228,6 +277,16 @@ GET clickstream-events/_count
 ```
 
 ```http
+GET dead-letter-events/_search
+{
+  "size": 10,
+  "sort": [
+    { "created_at": "desc" }
+  ]
+}
+```
+
+```http
 GET data-quality-results/_search
 {
   "size": 20,
@@ -256,6 +315,8 @@ GET data-quality-results/_search
 - 저장 전 validation과 저장 후 quality check는 역할이 다르기 때문에 분리하는 쪽이 자연스럽다고 판단했다.
 - 품질 점검은 전체 스캔보다 `ingested_at` 기반 증분 검사와 체크포인트 방식이 더 적절하다고 판단했다.
 - 제출 환경을 고려해 `.env` 없이도 `docker compose up`으로 실행되도록 기본값 중심으로 구성했다.
+- generator는 주기적으로 이벤트를 넣도록 두고, analytics와 visualizer는 한 번 실행 후 종료되는 배치 잡으로 분리했다. 계속 실행되는 서비스와 결과물을 만드는 배치 작업의 성격이 다르다고 판단했기 때문이다.
+- 큐는 Kafka 같은 외부 메시지 시스템 대신 in-memory queue로 구현했다. 과제 범위에서는 구조를 이해하기 쉽게 유지하는 것이 더 중요하다고 판단했고, 대신 batch flush와 queue size 제한으로 기본적인 적재 흐름은 확인할 수 있게 했다.
 
 ## 12. 한계
 

@@ -74,6 +74,7 @@ class GeneratorSettings:
     max_clicks_per_session: int
     purchase_rate: float
     error_rate: float
+    invalid_event_probability: float
     request_timeout_seconds: float
     health_retries: int
     retry_delay_seconds: float
@@ -81,7 +82,6 @@ class GeneratorSettings:
     max_cycles: int
     seed: int
     ensure_all_event_types: bool
-    # TODO: Add an invalid_event_rate setting
 
     @classmethod
     def from_env(cls) -> "GeneratorSettings":
@@ -100,6 +100,7 @@ class GeneratorSettings:
             max_clicks_per_session=int(os.getenv("MAX_CLICKS_PER_SESSION", "2")),
             purchase_rate=float(os.getenv("PURCHASE_RATE", "0.22")),
             error_rate=float(os.getenv("ERROR_RATE", "0.05")),
+            invalid_event_probability=float(os.getenv("INVALID_EVENT_PROBABILITY", "0.15")),
             request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "10")),
             health_retries=int(os.getenv("API_HEALTH_RETRIES", "30")),
             retry_delay_seconds=float(os.getenv("API_RETRY_DELAY_SECONDS", "2")),
@@ -132,6 +133,7 @@ class ClickstreamGenerator:
         self.random = random.Random(settings.seed)
         self.catalog = self._build_catalog(settings.catalog_size)
         self.user_count = max(50, settings.total_sessions // 2)
+        self.last_invalid_event_count = 0
 
     def generate(self) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
@@ -158,7 +160,7 @@ class ClickstreamGenerator:
         if self.settings.ensure_all_event_types:
             self._ensure_event_type_coverage(events)
 
-        # TODO: events for validation/DLQ
+        self.last_invalid_event_count = self._inject_invalid_events(events)
         return sorted(events, key=lambda event: event["event_time"])
 
     def _build_catalog(self, size: int) -> list[CatalogItem]:
@@ -346,6 +348,43 @@ class ClickstreamGenerator:
             "device": device,
             **fields,
         }
+
+    def _inject_invalid_events(self, events: list[dict[str, Any]]) -> int:
+        if not events or self.random.random() >= self.settings.invalid_event_probability:
+            return 0
+
+        base_event = self.random.choice(events)
+        event_time = parse_timestamp(base_event["event_time"])
+        if event_time is None:
+            event_time = datetime.now(UTC)
+
+        invalid_event = self._build_invalid_missing_device(
+            user_id=base_event["user_id"],
+            session_id=base_event["session_id"],
+            device=base_event["device"],
+            event_time=event_time + timedelta(seconds=self.random.uniform(1, 6)),
+        )
+        events.append(invalid_event)
+        return 1
+
+    def _build_invalid_missing_device(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        device: str,
+        event_time: datetime,
+    ) -> dict[str, Any]:
+        event = self._build_common_event(
+            event_type="page_view",
+            user_id=user_id,
+            session_id=session_id,
+            device=device,
+            event_time=event_time,
+            page_url="/courses?query=missing+device",
+        )
+        event.pop("device", None)
+        return event
     # DEMO용 보정
     def _ensure_event_type_coverage(self, events: list[dict[str, Any]]) -> None:
         counts = Counter(event["event_type"] for event in events)
@@ -417,12 +456,13 @@ class ClickstreamGenerator:
         raise RuntimeError(f"ingestion API is not reachable at {self.settings.health_url}")
 
 
-def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize_events(events: list[dict[str, Any]], *, invalid_event_count: int = 0) -> dict[str, Any]:
     counts = Counter(event["event_type"] for event in events)
     sample_events = events[:3]
     return {
         "total_events": len(events),
         "event_type_counts": dict(sorted(counts.items())),
+        "injected_invalid_events": invalid_event_count,
         "sample_events": sample_events,
         "bias_reference": {
             "position_bias": POSITION_BIAS,
@@ -435,7 +475,7 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
 def run_oneshot(settings: GeneratorSettings) -> None:
     generator = ClickstreamGenerator(settings)
     events = generator.generate()
-    summary = summarize_events(events)
+    summary = summarize_events(events, invalid_event_count=generator.last_invalid_event_count)
 
     if settings.send_to_api:
         generator.post_events(events)
@@ -472,7 +512,7 @@ def run_continuous(settings: GeneratorSettings) -> None:
     while True:
         cycle += 1
         events = generator.generate()
-        summary = summarize_events(events)
+        summary = summarize_events(events, invalid_event_count=generator.last_invalid_event_count)
 
         if settings.send_to_api:
             generator.post_events(events)

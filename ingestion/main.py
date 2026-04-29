@@ -118,6 +118,9 @@ async def ingest_events(payload: Any = Body(...)) -> dict[str, Any]:
                 error_reason=error_reason,
                 failed_stage="validation",
                 event_id=raw_event.get("event_id") if isinstance(raw_event, dict) else None,
+                event_type=raw_event.get("event_type") if isinstance(raw_event, dict) else None,
+                source_service="ingestion-api",
+                validation_errors=validation_result.errors,
             )
         )
 

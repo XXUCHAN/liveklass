@@ -144,6 +144,8 @@ class EventQueueWorker:
                 payload=event,
                 error_reason=error_reason,
                 failed_stage="bulk_insert",
+                event_type=event.get("event_type"),
+                source_service="ingestion-queue-worker",
             )
             for event in batch
         ]

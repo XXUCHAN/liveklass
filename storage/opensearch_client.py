@@ -60,8 +60,11 @@ def _dead_letter_index_mapping() -> dict[str, Any]:
         "mappings": {
             "properties": {
                 "event_id": {"type": "keyword"},
+                "event_type": {"type": "keyword"},
+                "source_service": {"type": "keyword"},
                 "payload": {"type": "object", "enabled": True},
                 "error_reason": {"type": "text"},
+                "validation_errors": {"type": "keyword"},
                 "failed_stage": {"type": "keyword"},
                 "created_at": {"type": "date"},
             }
@@ -182,12 +185,18 @@ class OpenSearchService:
         error_reason: str,
         failed_stage: str = "validation",
         event_id: str | None = None,
+        event_type: str | None = None,
+        source_service: str = "ingestion-api",
+        validation_errors: list[str] | None = None,
     ) -> dict[str, Any]:
         document = build_dead_letter_document(
             payload=payload,
             error_reason=error_reason,
             failed_stage=failed_stage,
             event_id=event_id,
+            event_type=event_type,
+            source_service=source_service,
+            validation_errors=validation_errors,
         )
         self.client.index(index=self.settings.dead_letter_index, body=document)
         return document
@@ -220,6 +229,9 @@ def build_dead_letter_document(
     error_reason: str,
     failed_stage: str,
     event_id: str | None = None,
+    event_type: str | None = None,
+    source_service: str = "ingestion-api",
+    validation_errors: list[str] | None = None,
 ) -> dict[str, Any]:
     resolved_event_id = event_id
     if resolved_event_id is None and isinstance(payload, dict):
@@ -227,10 +239,19 @@ def build_dead_letter_document(
         if isinstance(payload_event_id, str) and payload_event_id.strip():
             resolved_event_id = payload_event_id
 
+    resolved_event_type = event_type
+    if resolved_event_type is None and isinstance(payload, dict):
+        payload_event_type = payload.get("event_type")
+        if isinstance(payload_event_type, str) and payload_event_type.strip():
+            resolved_event_type = payload_event_type
+
     return {
         "event_id": resolved_event_id or f"missing-event-id-{uuid4().hex[:12]}",
+        "event_type": resolved_event_type or "unknown",
+        "source_service": source_service,
         "payload": payload if isinstance(payload, dict) else {"raw_payload": payload},
         "error_reason": error_reason,
+        "validation_errors": validation_errors or [],
         "failed_stage": failed_stage,
         "created_at": utc_timestamp(),
     }

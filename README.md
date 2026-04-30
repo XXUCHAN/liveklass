@@ -378,16 +378,50 @@ GET data-quality-results/_search
 
 ## 14. 선택 B. AWS 기초 이해
 
-AWS 운영 아키텍처 구성도는 [aws-architecture.md](docs/aws-architecture.md) 에 정리했다.
+이 프로젝트를 AWS에서 운영한다고 가정하면, 아래와 같은 구성이 자연스럽다.
+
+```mermaid
+flowchart LR
+    GEN["ECS Fargate Service\nEvent Generator"]
+    API["ECS Fargate Service\nIngestion API"]
+    OS["Amazon OpenSearch Service\nclickstream-events / dead-letter-events / data-quality-results"]
+    BATCH["ECS Fargate Task\nQuality / Analytics / Visualizer"]
+    DASH["OpenSearch Dashboards"]
+
+    GEN --> API
+    API --> OS
+    BATCH --> OS
+    DASH --> OS
+```
 
 사용한 AWS 서비스와 역할은 아래와 같다.
 
-- `ECS Fargate`: generator, ingestion API, quality/analytics 배치 잡 실행
+- `ECS Fargate`: generator와 ingestion API 상시 실행, quality/analytics/visualizer 배치 잡 실행
 - `Amazon OpenSearch Service`: 이벤트 저장, 검색, 집계
-- `Amazon S3`: 집계 JSON과 차트 이미지 저장
-- `Amazon EventBridge`: generator와 배치 잡의 주기 실행 스케줄링
-- `Amazon CloudWatch`: 로그와 상태 모니터링
 
-서비스 역할 차이를 간단히 설명하면, ECS Fargate는 코드를 실행하는 환경이고, OpenSearch는 로그를 저장하고 조회하는 저장소이며, S3는 결과 파일을 보관하는 스토리지다. EventBridge는 주기 실행을 담당하고, CloudWatch는 운영 중 로그와 상태를 확인하는 역할을 한다.
+서비스 역할 차이를 간단히 설명하면, ECS Fargate는 코드를 실행하는 환경이고, OpenSearch는 로그를 저장하고 조회하는 저장소다. 시각화는 OpenSearch Dashboards에서 직접 확인하는 쪽을 기본으로 잡았다.
 
-가장 고민한 부분은 ingestion API 뒤에 durable queue를 둘지 여부였다. 현재 과제 구현은 in-memory queue로 충분하지만, 실제 AWS 운영 환경에서는 트래픽 급증과 장애 상황을 고려하면 SQS나 Kinesis를 중간에 두는 것이 더 안전하다. 이번 설계에서는 현재 코드 구조를 최대한 자연스럽게 확장하는 방향을 우선해 `API → OpenSearch` 흐름을 유지하고, 이후 queue를 추가하는 방향을 고려했다.
+가장 고민한 부분은 스택을 어디까지 단순화할지였다. 현재 과제 규모에서는 EventBridge, CloudWatch, S3 같은 보조 서비스를 더 붙일 수도 있지만, 오히려 과한 설계처럼 보일 수 있다고 판단했다. 그래서 핵심 흐름을 `Fargate → OpenSearch` 중심으로 단순화하고, 필요한 배치 작업도 같은 Fargate 실행 계층 안에서 처리하는 방향으로 정리했다.
+
+비용 측면에서도 trade-off가 있었다. 가장 비용이 큰 후보는 상시 실행되는 `ECS Fargate` 서비스와 `Amazon OpenSearch Service`이며, 특히 OpenSearch는 로그 저장량과 인덱스 규모가 커질수록 비용이 빠르게 증가할 수 있다. 이번 규모에서는 산출물 파일을 별도 스토리지에 보관하기보다, 필요할 때 로컬에서 일회성으로 생성하는 편이 더 단순하다고 판단했다.
+
+현재 트래픽 기준의 대략적인 리소스 가정은 아래와 같다.
+
+- 평균 이벤트 유입량: 약 `9~10 events/sec`
+- 월간 이벤트 수: 약 `24.4M`
+- 원본 이벤트 적재량: 약 `8.6 GiB/month`
+- OpenSearch 인덱스 저장량 추정: 약 `21.6 GiB/month`
+
+이 기준이면 AWS에서는 아래 정도로 시작할 수 있다.
+
+- generator: `0.25 vCPU / 0.5 GB`
+- ingestion API: `0.5 vCPU / 1 GB`
+- quality / analytics / visualizer: `0.25 vCPU / 1 GB` 배치
+- OpenSearch: `t3.small.search + gp3 50 GB` 이상
+
+서울 리전 기준으로 추산하면, 최소 운영안은 대략 아래 수준이다.
+
+- Fargate: 약 `$31.08/month` + batch
+- OpenSearch: 약 `$47.84/month`
+
+즉 전체는 **약 `$79/month` + batch** 정도로 볼 수 있다.

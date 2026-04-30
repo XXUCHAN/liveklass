@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: analytics-reporting
+  namespace: liveklass
+spec:
+  schedule: "5/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: analytics-reporting
+              image: logpipeline-job:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -lc
+                - python -u analytics/metrics/aggregate.py && python -u analytics/visualization/visualize.py
+              volumeMounts:
+                - name: analytics-output
+                  mountPath: /app/output
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "300m"
+                  memory: "256Mi"
+          volumes:
+            - name: analytics-output
+              persistentVolumeClaim:
+                claimName: analytics-output-pvc

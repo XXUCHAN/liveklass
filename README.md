@@ -342,27 +342,43 @@ GET data-quality-results/_search
 
 ## 13. 선택 A. Kubernetes
 
-`k8s/` 아래에 이벤트 생성기 배포를 가정한 manifest 파일을 추가했다.
+`k8s/` 아래에 전체 파이프라인을 Kubernetes에서 운영한다고 가정한 manifest 파일을 추가했다.
 
 - `k8s/namespace.yaml`
-- `k8s/generator-configmap.yaml`
+- `k8s/pipeline-configmap.yaml`
+- `k8s/output-pvc.yaml`
+- `k8s/opensearch-service.yaml`
+- `k8s/opensearch-statefulset.yaml`
+- `k8s/ingestion-service.yaml`
+- `k8s/ingestion-deployment.yaml`
 - `k8s/generator-deployment.yaml`
+- `k8s/quality-cronjob.yaml`
+- `k8s/reporting-cronjob.yaml`
 
 선택한 리소스의 역할:
 
 - `Namespace`: 관련 리소스를 `liveklass` 네임스페이스로 분리한다.
-- `ConfigMap`: generator 실행 설정값을 환경변수로 주입한다.
-- `Deployment`: generator 컨테이너를 실행하고, 장애 시 다시 시작되도록 관리한다.
+- `ConfigMap`: generator 실행에 꼭 필요한 설정만 환경변수로 분리한다.
+- `Service`: `ingestion-api`, `opensearch`처럼 다른 Pod가 고정된 이름으로 접근해야 하는 컴포넌트의 네트워크 진입점을 제공한다.
+- `StatefulSet`: OpenSearch처럼 디스크를 가지는 상태 저장 컴포넌트를 실행한다.
+- `PersistentVolumeClaim`: OpenSearch 데이터와 analytics/visualizer 산출물을 저장할 볼륨을 확보한다.
+- `Deployment`: ingestion API와 generator처럼 계속 실행되어야 하는 프로세스를 관리한다.
+- `CronJob`: quality와 reporting처럼 주기 실행되는 배치 작업을 스케줄링한다.
 
 선택한 이유:
 
-- generator는 주기적으로 이벤트를 계속 생성하는 구조라 `Deployment`로 운영하는 것이 자연스럽다고 판단했다.
-- 실행 설정은 코드와 분리하는 것이 좋기 때문에 `ConfigMap`을 사용했다.
-- 작은 과제라도 리소스를 분리해서 관리하는 편이 이후 확장이나 운영 설명에 더 적합하다고 판단했다.
+- OpenSearch는 상태 저장 스토리지와 함께 운영해야 하므로 `StatefulSet + Service + PersistentVolumeClaim` 조합이 가장 자연스럽다고 판단했다.
+- ingestion API와 generator는 계속 살아 있어야 하는 프로세스라 `Deployment`로 두는 편이 맞다고 봤다.
+- ingestion API는 현재 in-memory queue를 사용하므로, Kubernetes manifest에서는 queue 일관성을 위해 `replicas: 1` 기준으로 두었다.
+- ingestion API는 다른 Pod가 접근해야 하므로 `Service`가 필요하다.
+- quality는 저장 후 정합성 점검을 반복 실행해야 하므로 `CronJob`이 적합하다.
+- analytics와 visualizer는 둘 다 배치성 작업이고 출력 경로를 공유하므로, `reporting CronJob` 하나에서 순서대로 실행하도록 단순화했다.
+- reporting이 만든 JSON과 PNG를 남기기 위해 output 경로는 별도 `PersistentVolumeClaim`으로 분리했다.
+- 실행 설정은 필요한 부분만 코드와 이미지에서 분리하는 것이 관리상 유리하므로 `ConfigMap`을 최소 구성으로 두었다.
 
 ## 14. 선택 B. AWS 기초 이해
 
-AWS 운영 아키텍처 구성도는 [aws-architecture.md](/Users/xxuchan/Desktop/logPipeline/docs/aws-architecture.md) 에 정리했다.
+AWS 운영 아키텍처 구성도는 [aws-architecture.md](docs/aws-architecture.md) 에 정리했다.
 
 사용한 AWS 서비스와 역할은 아래와 같다.
 

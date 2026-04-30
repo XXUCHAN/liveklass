@@ -20,7 +20,7 @@ spec:
           command: ["python", "-m", "generator.main"]
           envFrom:
             - configMapRef:
-                name: event-generator-config
+                name: pipeline-config
           resources:
             requests:
               cpu: "100m"

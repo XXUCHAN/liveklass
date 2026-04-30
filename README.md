@@ -60,7 +60,7 @@ brew install --cask docker
 
 ```bash
 git clone <repository-url>
-cd liveklass
+cd logPipeline
 ```
 
 2. 전체 스택 실행

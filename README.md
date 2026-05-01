@@ -320,7 +320,22 @@ GET data-quality-results/_search
 
 시각화는 단순 클릭 수가 아니라 `raw CTR`, `rank-standardized CTR`, `regression-adjusted CTR`를 비교하는 방향으로 구성했다.
 
-## 11. 구현하면서 고민한 점
+## 11. 부하 테스트 메모
+
+로컬 단일 인스턴스 기준으로 in-memory queue와 ingestion API의 처리량을 간단히 측정했다.
+
+- `scripts/benchmark_queue.py`
+  - OpenSearch를 제외하고 queue worker만 분리해 측정한다.
+  - 현재 설정(`batch_size=100`, `flush_interval=2s`, `max_queue_size=10000`)에서 queue는 약 `9,900 events`까지 순간 버스트를 수용했다.
+  - flush loop 개선 후, `50ms` downstream latency 가정에서 `500 events` drain 시간은 약 `8.27s -> 0.22s`로 줄었고, `1000 eps` 목표 부하에서도 backlog가 `1605 -> 305` 수준으로 감소했다.
+
+- `scripts/load_test_ingestion.py`
+  - 실제 `POST /events` 경로를 두드려 end-to-end로 측정한다.
+  - 단일 API/단일 OpenSearch 노드 기준 `10 rps`에서 약 `955 events/s`를 안정적으로 처리했고, 다중 클라이언트 합산 부하에서는 약 `4.8k events/s` 수준에서도 `200 OK`만 유지하며 테스트 종료 후 queue가 `0`으로 회복되는 것을 확인했다.
+
+위 수치는 로컬 개발 환경 기준 참고값이며, 실제 운영 처리량은 CPU, 메모리, OpenSearch 노드 수, batch 설정에 따라 달라질 수 있다.
+
+## 12. 구현하면서 고민한 점
 
 - 완전 랜덤 로그보다 실제 사용자 흐름처럼 보이는 클릭스트림을 만드는 것이 더 중요하다고 판단해 세션 기반으로 이벤트를 설계했다.
 - `impression`과 `click`을 분리해야 CTR과 bias 기반 분석이 가능하다고 봤다.
@@ -331,7 +346,7 @@ GET data-quality-results/_search
 - generator는 주기적으로 이벤트를 넣도록 두고, analytics와 visualizer는 한 번 실행 후 종료되는 배치 잡으로 분리했다. 계속 실행되는 서비스와 결과물을 만드는 배치 작업의 성격이 다르다고 판단했기 때문이다.
 - 큐는 Kafka 같은 외부 메시지 시스템 대신 in-memory queue로 구현했다. 과제 범위에서는 구조를 이해하기 쉽게 유지하는 것이 더 중요하다고 판단했고, 대신 batch flush와 queue size 제한으로 기본적인 적재 흐름은 확인할 수 있게 했다.
 
-## 12. 한계 및 확장성
+## 13. 한계 및 확장성
 
 - 현재는 in-memory queue를 사용하므로 프로세스 종료 시 메모리 버퍼가 유실될 수 있다.
 - 이벤트 유입량이 커지는 환경에서는 이 부분을 Kafka, Kinesis 같은 durable queue로 교체하는 방향을 고려했다.
@@ -340,7 +355,7 @@ GET data-quality-results/_search
 - invalid event는 `device` 누락 한 가지 시나리오만 사용하고 있어, 더 다양한 실패 유형 검증은 추가 여지가 있다.
 - `regression_adjusted_ctr`는 경량 로지스틱 회귀 기반의 보정이므로, 변수 간 복잡한 상호작용이나 더 정교한 causal correction까지는 반영하지 못한다. 현재 결과에서는 popularity 항목에서 `rank_standardized_ctr`가 더 안정적인 해석 지표로 보였다.
 
-## 13. 선택 A. Kubernetes
+## 14. 선택 A. Kubernetes
 
 `k8s/` 아래에 전체 파이프라인을 Kubernetes에서 운영한다고 가정한 manifest 파일을 추가했다.
 
@@ -376,7 +391,7 @@ GET data-quality-results/_search
 - reporting이 만든 JSON과 PNG를 남기기 위해 output 경로는 별도 `PersistentVolumeClaim`으로 분리했다.
 - 실행 설정은 필요한 부분만 코드와 이미지에서 분리하는 것이 관리상 유리하므로 `ConfigMap`을 최소 구성으로 두었다.
 
-## 14. 선택 B. AWS 기초 이해
+## 15. 선택 B. AWS 기초 이해
 
 이 프로젝트를 AWS에서 운영한다고 가정하면, 아래와 같은 구성이 자연스럽다.
 

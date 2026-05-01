@@ -129,6 +129,26 @@ class EventQueueWorker:
             failed=total_failed,
         )
 
+    def flush_ready_batches(self) -> FlushResult:
+        total_attempted = 0
+        total_succeeded = 0
+        total_failed = 0
+
+        while self.queue_size() >= self.settings.batch_size:
+            result = self.flush_once()
+            if result.attempted == 0:
+                break
+
+            total_attempted += result.attempted
+            total_succeeded += result.succeeded
+            total_failed += result.failed
+
+        return FlushResult(
+            attempted=total_attempted,
+            succeeded=total_succeeded,
+            failed=total_failed,
+        )
+
     def _pop_batch(self, batch_size: int) -> list[dict[str, Any]]:
         with self._lock:
             if not self._queue:
@@ -156,9 +176,16 @@ class EventQueueWorker:
 
     def _run(self) -> None:
         while not self._stop_signal.is_set():
-            self._flush_signal.wait(timeout=self.settings.flush_interval_seconds)
+            signaled = self._flush_signal.wait(timeout=self.settings.flush_interval_seconds)
             self._flush_signal.clear()
-            self.flush_once()
+
+            if self._stop_signal.is_set():
+                break
+
+            if signaled:
+                self.flush_ready_batches()
+            else:
+                self.flush_once()
 
         if self.queue_size() > 0:
             self.flush_all()
